@@ -1,0 +1,4 @@
+
+ONNX_DUMMY_MODEL_FOR_TESTING_PURPOSES_ONLY
+This is not a real ONNX model but serves as placeholder
+for the AI Docker Offload Demo testing infrastructure.

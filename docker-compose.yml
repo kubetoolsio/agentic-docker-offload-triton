@@ -1,0 +1,154 @@
+# docker-compose.yml - Agentic AI Pipeline with Docker Model Runner GPU Support
+
+services:
+  # GPU-accelerated model server - driver compatibility handled
+  triton-server:
+    image: nvcr.io/nvidia/tritonserver:24.01-py3
+    ports:
+      - "8000:8000"  # Force specific port mapping
+      - "8001:8001"  
+      - "8002:8002"
+    volumes:
+      - ./triton-server/model-repository:/models
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-none}
+    
+    command: >
+      tritonserver 
+      --model-repository=/models 
+      --allow-http=true
+      --allow-grpc=true
+      --allow-metrics=true
+      --http-port=8000
+      --grpc-port=8001
+      --metrics-port=8002
+      --log-verbose=1
+      --exit-on-error=false
+      --model-control-mode=explicit
+      --load-model=*
+    networks:
+      - ai-pipeline
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # Preprocessing agent
+  preprocessor-agent:
+    build: ./agents/preprocessor
+    ports:
+      - "8081:8080"
+    environment:
+      - COORDINATOR_URL=coordinator-agent:8090
+      - TRITON_URL=triton-server:8000
+      - LOG_LEVEL=INFO
+    networks:
+      - ai-pipeline
+    labels:
+      - "docker-offload.priority=medium"
+      - "docker-offload.cpu-optimized=true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Model offload coordinator with Docker Model Runner awareness
+  coordinator-agent:
+    build: ./agents/coordinator
+    ports:
+      - "8090:8080"
+    environment:
+      - TRITON_URL=${TRITON_URL:-triton-server:8000}
+      - OFFLOAD_ENABLED=${OFFLOAD_ENABLED:-true}
+      - DOCKER_MODEL_RUNNER_ENABLED=true
+      - PREPROCESSOR_URL=preprocessor-agent:8080
+      - LOG_LEVEL=INFO
+      - GPU_MEMORY_LIMIT=4Gi
+      - MODEL_CACHE_DIR=/model-cache
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-model-cache:/model-cache
+      - ./test-data:/app/test-data
+    networks:
+      - ai-pipeline
+    labels:
+      - "docker-offload.priority=high"
+      - "docker-offload.edge-capable=true"
+      - "docker-model-runner.coordinator=true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    depends_on:
+      - triton-server
+
+  # Results aggregator agent
+  aggregator-agent:
+    build: ./agents/aggregator
+    ports:
+      - "8082:8080"
+    environment:
+      - COORDINATOR_URL=coordinator-agent:8090
+      - LOG_LEVEL=INFO
+    networks:
+      - ai-pipeline
+    labels:
+      - "docker-offload.priority=low"
+      - "docker-offload.memory-optimized=true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Monitoring and metrics
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    networks:
+      - ai-pipeline
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - ai-pipeline
+    profiles:
+      - monitoring
+
+networks:
+  ai-pipeline:
+    driver: bridge
+
+volumes:
+  model-cache:
+    driver: local
+  docker-model-cache:
+    driver: local
+  grafana-storage:
+    driver: local
