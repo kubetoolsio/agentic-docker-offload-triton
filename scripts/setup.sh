@@ -3,34 +3,34 @@
 # Setup script for AI Docker Offload Demo
 set -e
 
-echo "🚀 Setting up AI Docker Offload Demo..."
+echo "Setting up AI Docker Offload Demo..."
 
 # Check prerequisites
-echo "📋 Checking prerequisites..."
+echo "Checking prerequisites..."
 
 # Check Docker
 if ! command -v docker &> /dev/null; then
-    echo "❌ Docker is not installed. Please install Docker Engine 20.10+"
+    echo "Docker is not installed. Please install Docker Engine 20.10+"
     exit 1
 fi
 
 # Check Docker Compose
 if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-    echo "❌ Docker Compose is not installed. Please install Docker Compose v2.0+"
+    echo "Docker Compose is not installed. Please install Docker Compose v2.0+"
     exit 1
 fi
 
 # Check NVIDIA Docker support
 if ! docker run --gpus all --rm nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi &> /dev/null; then
-    echo "⚠️  GPU support not available. Some features will run in CPU mode."
-    echo "   To enable GPU support, install NVIDIA Container Toolkit:"
-    echo "   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+    echo "GPU support not available. Some features will run in CPU mode."
+    echo "To enable GPU support, install NVIDIA Container Toolkit:"
+    echo "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
 else
-    echo "✅ GPU support detected"
+    echo "GPU support detected"
 fi
 
 # Create directories
-echo "📁 Creating project structure..."
+echo "Creating project structure..."
 mkdir -p triton-server/model-repository
 mkdir -p test-data
 mkdir -p monitoring/{prometheus,grafana/{dashboards,datasources}}
@@ -38,7 +38,7 @@ mkdir -p logs
 mkdir -p agents/{coordinator,preprocessor,aggregator}
 
 # Create empty model repository for now (no invalid models)
-echo "📦 Setting up empty model repository..."
+echo "Setting up empty model repository..."
 echo "# Triton Model Repository" > triton-server/model-repository/README.md
 echo "This directory will contain AI models for inference." >> triton-server/model-repository/README.md
 echo "Run ./scripts/download-models.sh to add sample models." >> triton-server/model-repository/README.md
@@ -60,7 +60,7 @@ scrape_configs:
 EOF
 
 # Create test data
-echo "🧪 Creating test data..."
+echo "Creating test data..."
 echo "This is a sample text for testing the AI inference pipeline" > test-data/sample.txt
 
 # Download a sample image (create a simple test image)
@@ -74,7 +74,7 @@ img = np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8)
 image = Image.fromarray(img)
 image.save('test-data/sample.jpg')
 print('Created sample test image')
-" 2>/dev/null || echo "⚠️  Could not create sample image (PIL not available)"
+" 2>/dev/null || echo "Could not create sample image (PIL not available)"
 
 # Create environment file
 cat > .env << 'EOF'
@@ -89,7 +89,10 @@ NVIDIA_VISIBLE_DEVICES=all
 GPU_MEMORY_LIMIT=8Gi
 
 # Offload Configuration
+# OFFLOAD_MODE options: auto | local-gpu | remote-offload | cpu
+OFFLOAD_MODE=auto
 OFFLOAD_ENABLED=false
+REMOTE_DOCKER_MODEL_RUNNER_URL=
 CLOUD_ENDPOINT=
 
 # Logging
@@ -99,7 +102,7 @@ EOF
 # Set permissions
 chmod +x scripts/*.sh 2>/dev/null || true
 
-echo "✅ Setup complete!"
+echo "Setup complete!"
 echo ""
 echo "Next steps:"
 echo "1. Download sample models: ./scripts/download-models.sh"

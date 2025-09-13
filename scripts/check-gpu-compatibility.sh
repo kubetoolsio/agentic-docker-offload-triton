@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🔍 Checking GPU compatibility..."
+echo "Checking GPU compatibility..."
 
 # Method 1: Test GPU access through Docker (this is the definitive test)
 echo "🐳 Testing Docker GPU access..."
@@ -65,14 +65,14 @@ export NVIDIA_VISIBLE_DEVICES="$NVIDIA_DEVICES"
 
 if [ "$FINAL_GPU_MODE" = "gpu" ]; then
     echo ""
-    echo "🎮 GPU Support Summary:"
-    echo "   • NVIDIA Driver: $DRIVER_VERSION"
-    echo "   • Docker GPU: Available"
-    echo "   • Triton GPU: Enabled"
-    echo "   • Model Runner: GPU offload ready"
+    echo "GPU Support Summary:"
+    echo "   NVIDIA Driver: $DRIVER_VERSION"
+    echo "   Docker GPU: Available"
+    echo "   Triton GPU: Enabled"
+    echo "   Model Runner: GPU offload ready"
 else
     echo ""
-    echo "🖥️  CPU Mode Summary:"
-    echo "   • GPU support not available"
-    echo "   • Using CPU inference only"
+    echo "CPU Mode Summary:"
+    echo "   GPU support not available"
+    echo "   Using CPU inference only"
 fi

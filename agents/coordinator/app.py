@@ -58,27 +58,31 @@ class Agent:
         self.start_time = time.time()
         self.health_status = "initializing"
         
-        # Docker Model Runner support - FIXED INITIALIZATION
-        self.docker_model_runner_enabled = os.getenv('DOCKER_MODEL_RUNNER_ENABLED', 'false').lower() == 'true'
+        # Offload configuration
+        self.offload_mode = os.getenv("OFFLOAD_MODE", "auto")
+        self.remote_runner_url = os.getenv("REMOTE_DOCKER_MODEL_RUNNER_URL", "").strip() or None
+        self.docker_model_runner_enabled = os.getenv('DOCKER_MODEL_RUNNER_ENABLED', 'true').lower() == 'true'
+
+        # Disable local runner automatically in remote-offload mode
+        if self.offload_mode == "remote-offload":
+            self.docker_model_runner_enabled = False
+            logger.info("Remote offload mode active: local Docker Model Runner disabled")
+
         self.docker_client = None
-        
-        # Initialize Docker client with better error handling
         if self.docker_model_runner_enabled:
             try:
                 import docker
-                # Use from_env() which is more reliable
                 self.docker_client = docker.from_env()
-                # Test the connection
                 self.docker_client.ping()
-                logger.info("Docker Model Runner support enabled")
-            except ImportError:
-                logger.warning("Docker library not available")
-                self.docker_model_runner_enabled = False
+                logger.info("Local Docker Model Runner enabled")
             except Exception as e:
-                logger.warning(f"Failed to initialize Docker client: {e}")
+                logger.warning(f"Disabling Docker Model Runner (init failed): {e}")
                 self.docker_model_runner_enabled = False
-                
-        logger.info(f"Docker Model Runner enabled: {self.docker_model_runner_enabled}")
+
+        logger.info("Offload configuration",
+                    offload_mode=self.offload_mode,
+                    docker_model_runner_enabled=self.docker_model_runner_enabled,
+                    remote_runner_url=bool(self.remote_runner_url))
     
     async def initialize(self):
         """Discover available models and their capabilities"""
@@ -177,36 +181,45 @@ class Agent:
             await self._setup_mock_mode()
 
     async def route_inference(self, request: InferenceRequest) -> Dict[str, Any]:
-        """Intelligent routing with Docker Model Runner GPU support"""
+        """Route inference request to appropriate path based on model and offload settings"""
         start_time = time.time()
-        
+
         try:
             if request.model_name not in self.model_metadata:
                 REQUEST_COUNT.labels(model=request.model_name, status='error').inc()
                 raise HTTPException(404, f"Model {request.model_name} not found or not ready")
-                
+
             model_info = self.model_metadata[request.model_name]
-            
-            # Check if Docker Model Runner with GPU should be used
-            if (self.docker_model_runner_enabled and 
-                os.getenv('OFFLOAD_ENABLED', 'false').lower() == 'true'):
-                
-                logger.info(f"Attempting Docker Model Runner GPU offload for {request.model_name}")
+            offload_enabled = os.getenv('OFFLOAD_ENABLED', 'false').lower() == 'true'
+
+            # Path 1: Local GPU Docker Model Runner
+            if offload_enabled and self.docker_model_runner_enabled and self._should_use_local_gpu_offload():
+                logger.info(f"Attempting local GPU Docker Model Runner offload for {request.model_name}")
                 try:
                     return await self._offload_to_docker_model_runner(request)
                 except Exception as e:
-                    logger.warning(f"Docker Model Runner failed, falling back: {e}")
-            
-            # Try regular Triton inference
+                    logger.warning(f"Local GPU offload failed, trying next path: {e}")
+
+            # Path 2: Remote Offload Runner
+            if offload_enabled and self.remote_runner_url and self._should_use_remote_offload():
+                logger.info(f"Attempting remote Docker offload for {request.model_name} via {self.remote_runner_url}")
+                try:
+                    return await self._offload_to_remote_runner(request, start_time)
+                except Exception as e:
+                    logger.warning(f"Remote offload failed, trying next path: {e}")
+
+            # Path 3: Standard Triton Inference
             if model_info.get('platform') != 'mock':
+                logger.info(f"Attempting Triton inference for {request.model_name}")
                 try:
                     return await self._real_inference(request, model_info, start_time)
                 except Exception as e:
                     logger.warning(f"Triton inference failed, falling back to mock: {e}")
             
-            # Fallback to mock inference
+            # Path 4: Fallback to Mock Inference
+            logger.info(f"Falling back to mock inference for {request.model_name}")
             return await self._mock_inference(request, model_info, start_time)
-                
+
         except HTTPException:
             raise
         except Exception as e:
@@ -328,41 +341,41 @@ class Agent:
         return response
 
     async def _check_docker_model_runner_gpu(self) -> Dict[str, Any]:
-        """Check Docker Model Runner GPU availability"""
+        """Report GPU/offload state clearly."""
+        # Remote offload: assume GPU provided by Docker Offload backend
+        if self.offload_mode == "remote-offload":
+            return {
+                "available": True,
+                "mode": "remote-offload",
+                "reason": "GPU provided via Docker Offload",
+                "docker_model_runner": False
+            }
         if not self.docker_model_runner_enabled:
-            return {"available": False, "reason": "Docker Model Runner not enabled"}
-        
+            return {
+                "available": False,
+                "mode": self.offload_mode,
+                "reason": "Local Docker Model Runner disabled"
+            }
         if not self.docker_client:
-            return {"available": False, "reason": "Docker client not initialized"}
-        
+            return {
+                "available": False,
+                "mode": self.offload_mode,
+                "reason": "Docker client not initialized"
+            }
         try:
-            # Quick test - just check if docker is responding
-            self.docker_client.ping()
-            
-            # Check if NVIDIA runtime is available
             info = self.docker_client.info()
-            runtimes = info.get('Runtimes', {})
-            
-            nvidia_available = 'nvidia' in runtimes
-            
-            if nvidia_available:
-                return {
-                    "available": True,
-                    "nvidia_runtime": True,
-                    "docker_model_runner_ready": True,
-                    "runtimes": list(runtimes.keys())
-                }
-            else:
-                return {
-                    "available": False,
-                    "reason": "NVIDIA runtime not available",
-                    "runtimes": list(runtimes.keys())
-                }
-                
+            runtimes = info.get("Runtimes", {})
+            has = "nvidia" in runtimes
+            return {
+                "available": has,
+                "mode": "local-gpu" if has else self.offload_mode,
+                "runtimes": list(runtimes.keys())
+            }
         except Exception as e:
             return {
                 "available": False,
-                "reason": f"Docker check failed: {e}"
+                "mode": self.offload_mode,
+                "reason": f"Docker info failed: {e}"
             }
     
     async def _offload_to_docker_model_runner(self, request: InferenceRequest) -> Dict[str, Any]:
@@ -459,6 +472,58 @@ class Agent:
             return triton_gpu or docker_gpu
         except:
             return False
+        
+    def _should_use_local_gpu_offload(self) -> bool:
+        """Determines if the local GPU path should be taken based on OFFLOAD_MODE."""
+        # Note: A real implementation for 'auto' would check for local GPU hardware here.
+        # For this showcase, we rely on the mode set by start-system.sh.
+        return self.offload_mode == "local-gpu"
+
+    def _should_use_remote_offload(self) -> bool:
+        """Determines if the remote offload path should be taken based on OFFLOAD_MODE."""
+        return self.offload_mode == "remote-offload"
+
+    async def _offload_to_remote_runner(self, request: InferenceRequest, start_time: float) -> Dict[str, Any]:
+        """Send inference request to a remote Docker Model Runner endpoint"""
+        if not self.remote_runner_url:
+            raise Exception("Remote runner URL not configured")
+
+        payload = {
+            "model_name": request.model_name,
+            "inputs": request.inputs
+        }
+
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(self.remote_runner_url.rstrip('/') + "/infer", json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+        except ImportError:
+            # Fallback for environments without httpx
+            import urllib.request
+            import json as _json
+            req = urllib.request.Request(
+                self.remote_runner_url.rstrip('/') + "/infer",
+                data=_json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=60) as f:
+                data = _json.loads(f.read().decode("utf-8"))
+        
+        elapsed = int((time.time() - start_time) * 1000)
+        return {
+            "model": request.model_name,
+            "outputs": data.get("outputs", {}),
+            "metadata": {
+                "execution_time_ms": elapsed,
+                "mode": "remote_docker_offload",
+                "agent_id": "coordinator-001",
+                "timestamp": time.time(),
+                "gpu_used": data.get("metadata", {}).get("gpu_used", False)
+            }
+        }
 
 # Global agent instance - fix URL parsing
 triton_url_raw = os.getenv('TRITON_URL', 'triton-server:8000')
@@ -522,11 +587,12 @@ async def list_agents():
 @app.get("/gpu-status")
 async def gpu_status():
     """Get detailed GPU status for Docker Model Runner"""
-    gpu_info = await coordinator._check_docker_model_runner_gpu()
+    info = await coordinator._check_docker_model_runner_gpu()
     
     return {
+        "offload_mode": coordinator.offload_mode,
         "docker_model_runner_enabled": coordinator.docker_model_runner_enabled,
-        "gpu_info": gpu_info,
+        "gpu_info": info,
         "offload_enabled": os.getenv('OFFLOAD_ENABLED', 'false').lower() == 'true'
     }
 

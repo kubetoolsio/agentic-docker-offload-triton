@@ -23,6 +23,7 @@ agentic-docker-offload-triton/
 │       ├── text_classifier/
 │       ├── resnet50/
 │       └── resnet18/
+├── model_repository   # mock testing
 ├── test-data/
 │   ├── create-real-samples.sh
 │   ├── text_samples.txt
@@ -41,13 +42,11 @@ agentic-docker-offload-triton/
 │   ├── check-gpu-compatibility.sh
 │   ├── start-system.sh
 │   ├── test*.sh
-│   ├── verify-system.sh
-│   ├── setup-docker-model-runner.sh
-│   └── test-gpu-offload.sh
+│   ├── test-system.sh
+│   ├── test-real-inference.sh
 ├── docker-compose.yml
-├── docker-compose.override.yml
+├── docker-compose.gpu.override.yml
 ├── .env
-├── .env.gpu
 ├── README.md
 └── ...
 ```
@@ -56,7 +55,7 @@ agentic-docker-offload-triton/
 
 ## Overview
 
-This repository demonstrates a scalable, agentic AI inference pipeline using Docker containers, NVIDIA Triton Inference Server, and GPU offload logic. The system is designed for both mock and real model serving ( Real Model Serving not tested Yet)
+This repository demonstrates a scalable, agentic AI inference pipeline using Docker containers, NVIDIA Triton Inference Server, and GPU offload logic. The system is designed for both mock and real model serving 
 
 ---
 
@@ -69,7 +68,7 @@ This repository demonstrates a scalable, agentic AI inference pipeline using Doc
   - **aggregator/**: Aggregates results from multiple models or requests.
 
 - **triton-server/model-repository/**  
-  Stores ONNX models and configuration files for Triton Inference Server. Includes both dummy (for testing) and real models ( Not Verified Yet).
+  Stores ONNX models and configuration files for Triton Inference Server. Includes both dummy (for testing) and real models (Verified).
 
 - **test-data/**  
   Contains scripts and files for generating and storing sample data used in testing (text, images, payloads).
@@ -80,7 +79,7 @@ This repository demonstrates a scalable, agentic AI inference pipeline using Doc
 - **scripts/**  
   Utility scripts for setup, model download, GPU checks, starting/stopping services, and running tests.
 
-- **docker-compose.yml / docker-compose.override.yml**  
+- **docker-compose.yml / docker-compose.gpu.override.yml**  
   Main Docker Compose files for orchestrating all services and enabling GPU support.
 
 - **.env / .env.gpu**  
@@ -88,103 +87,134 @@ This repository demonstrates a scalable, agentic AI inference pipeline using Doc
 
 ---
 
-## Installation
+## Execution Modes
 
-1. **Clone the repository**
-    ```bash
-    git clone https://github.com/kubetoolsio/agentic-docker-offload-triton.git
-    cd agentic-docker-offload-triton
-    ```
-
-2. **Run setup and download models**
-    ```bash
-    ./scripts/setup.sh
-    ./scripts/download-models.sh          # For mock models
-    ./scripts/download-real-models.sh     # For real models (Not Verified Yet)
-    ```
-
-3. **Start the system**
-    ```bash
-    ./scripts/start-system.sh
-    ```
-
-4. **Verify services**
-    ```bash
-    ./scripts/verify-system.sh
-    ```
+| OFFLOAD_MODE     | Behavior                                      | Requirements                               |
+|------------------|-----------------------------------------------|---------------------------------------------|
+| cpu              | Everything runs CPU                           | None                                        |
+| local-gpu        | Use local NVIDIA GPU                          | Host GPU + NVIDIA runtime                   |
+| remote-offload   | Runs stack on Docker Offload cloud GPU        | `docker offload start --gpu` (eligible acct)|
+| auto (default)   | local-gpu if GPU → else remote-offload → cpu  | Optional GPU / Offload                      |
 
 ---
 
 ## Quick Start
 
+### 1. Clone & basic setup
 ```bash
-# Setup
+git clone https://github.com/kubetoolsio/agentic-docker-offload-triton.git
+cd agentic-docker-offload-triton
 ./scripts/setup.sh
-./scripts/download-models.sh
-
-# Start services
-docker-compose up -d
-
-# Test system
-./scripts/test-system.sh
 ```
 
-## Service Endpoints
+### 2. Add mock models (already in repo)
+```bash
+./scripts/download-models.sh
+```
 
-- **Coordinator API**: http://localhost:8090
-- **Preprocessor API**: http://localhost:8081  
-- **Aggregator API**: http://localhost:8082
-- **Triton Server**: http://localhost:8000
+### 3. (Optional) Add real small model (bert‑tiny ONNX)
+```bash
+./scripts/download-real-models.sh
+```
 
-## Docker Model Runner GPU Support
+### 4A. CPU only
+```bash
+OFFLOAD_MODE=cpu ./scripts/start-system.sh
+```
 
-The coordinator now supports **Docker Model Runner** for GPU-accelerated inference:
+### 4B. Remote GPU (Docker Offload)
+```bash
+docker offload start --gpu
+OFFLOAD_MODE=remote-offload ./scripts/start-system.sh
+```
+
+### 4C. Local GPU
+```bash
+OFFLOAD_MODE=local-gpu ./scripts/start-system.sh
+```
+
+---
+
+## Verify
 
 ```bash
-# Setup GPU support
-./scripts/setup-docker-model-runner.sh
-
-# Start with GPU offload
-OFFLOAD_ENABLED=true docker-compose up -d
-
-# Test GPU functionality
-./scripts/test-gpu-offload.sh
-
-# Monitor GPU usage
-curl http://localhost:8090/gpu-status
+./scripts/test-system.sh
+curl -s http://localhost:8090/health | jq .
+curl -s http://localhost:8090/gpu-status | jq .
 ```
 
-## Testing
+Remote or local GPU check:
+```bash
+./scripts/verify-remote-gpu.sh
+```
 
-- **System health and endpoints**
-    ```bash
-    ./scripts/test-system.sh
-    ```
+---
 
-- **Pipeline test**
-    ```bash
-    ./scripts/test-pipeline.sh
-    ```
+## Real Model Inference (bert‑tiny)
 
-- **Inference tests**
-    ```bash
-    ./scripts/test-inference.sh text "Your text here"
-    ./scripts/test-inference.sh image ./test-data/sample.jpg
-    ./scripts/test-inference.sh all
-    ```
+After adding the model:
+```bash
+./scripts/test-real-inference.sh "The movie was surprisingly good"
+```
 
-- **Real model tests**
-    ```bash
-    ./scripts/test-real-inference.sh
-    ```
+Example output includes logits + probabilities.
 
-- **GPU offload tests**
-    ```bash
-    ./scripts/test-gpu-offload.sh
-    ```
+---
 
-All tests now use port **8090** for the coordinator service.
+## Coordinator Endpoints
 
+| Endpoint                 | Purpose                          |
+|--------------------------|----------------------------------|
+| /health                  | Health & basic status            |
+| /models                  | Model list (mock + discovered)   |
+| /gpu-status              | Offload + GPU mode info          |
+| /metrics                 | Prometheus metrics               |
+| /infer                   | Mock routing (legacy path)       |
+
+Real model inference via Triton direct HTTP:
+```
+POST /v2/models/text_classifier/infer
+```
+
+---
+
+## Scripts Summary
+
+| Script                        | Purpose                                      |
+|-------------------------------|----------------------------------------------|
+| start-system.sh              | Mode detection & stack launch                |
+| download-models.sh           | Mock/dummy models                            |
+| download-real-models.sh      | Exports bert‑tiny ONNX                       |
+| test-system.sh               | End‑to‑end health tests                      |
+| test-inference.sh            | Mock inference helpers                       |
+| test-real-inference.sh       | Real ONNX model inference (bert‑tiny)        |          |
+
+---
+
+## Offload Mode Logic (Simplified)
+
+1. If OFFLOAD_MODE explicitly set → use it.
+2. If auto:
+   - Detect local GPU → local-gpu
+   - Else if Docker Offload active → remote-offload
+   - Else → cpu
+
+Remote mode disables local Docker Model Runner logic (no nested docker).
+
+---
+
+## Testing Examples
+
+```bash
+# Text (mock)
+./scripts/test-inference.sh text "hello world"
+
+# Image (mock)
+./scripts/test-inference.sh image ./test-data/sample.jpg
+
+# Real model (bert‑tiny)
+./scripts/test-real-inference.sh "A concise test sentence"
+```
 ---
 
 ## Troubleshooting
@@ -212,7 +242,8 @@ All tests now use port **8090** for the coordinator service.
 ## To-Dos
 
 - Add support for more model types (audio, multi-modal).
-- Improve Docker Model Runner integration.
+- Batch & multi‑model fan‑out
+- GPU utilization metrics surface
 - Expand aggregation strategies.
 - Add more real-world sample data.
 - Enhance documentation and examples.

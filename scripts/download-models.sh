@@ -3,19 +3,19 @@
 # Model setup script for AI Docker Offload Demo - NO EXTERNAL DOWNLOADS
 set -e
 
-echo "📥 Setting up lightweight test models for AI Docker Offload Demo..."
+echo "Setting up lightweight test models for AI Docker Offload Demo..."
 
 MODEL_REPO="triton-server/model-repository"
 
 # Clean up any old downloads completely
-echo "🧹 Cleaning up any previous downloads..."
+echo "Cleaning up any previous downloads..."
 rm -rf models/ 2>/dev/null || true
 rm -rf triton-server/model-repository/* 2>/dev/null || true
 
 # Ensure model repository exists
 mkdir -p ${MODEL_REPO}
 
-echo "📝 Creating lightweight test model configurations..."
+echo "Creating lightweight test model configurations..."
 
 # Create a simple identity model (using ONNX format for better compatibility)
 mkdir -p ${MODEL_REPO}/identity_model/1
@@ -131,18 +131,18 @@ with open(model_path, 'wb') as f:
 print(f'Created ResNet50 model at {model_path}')
 " 2>/dev/null || echo "⚠️  Could not create ResNet50 model"
 
-echo "✅ Test model repository created successfully!"
+echo "Test model repository created successfully!"
 echo ""
-echo "📊 Created models:"
+echo "Created models:"
 echo "  - identity_model: Simple passthrough model for testing"
 echo "  - text_classifier: Mock text classification model" 
 echo "  - resnet50: Mock image classification model"
 echo ""
-echo "📁 Model repository structure:"
+echo "Model repository structure:"
 find ${MODEL_REPO} -name "*.onnx" -o -name "*.pbtxt" | sort
 echo ""
 
-echo "💡 Model notes:"
+echo "Model notes:"
 echo "  - All models use ONNX format for maximum Triton compatibility"
 echo "  - Models are dummy files for infrastructure testing only"
 echo "  - Triton will attempt to load these but they will fail gracefully"
@@ -153,5 +153,5 @@ echo "1. Start services: docker-compose up -d"
 echo "2. Test system: ./scripts/test-system.sh"
 echo "3. Monitor logs: docker-compose logs -f triton-server"
 echo ""
-echo "🚀 No external downloads or dependencies required!"
-echo "🔍 Script contains NO wget, curl, or pip commands!"
+echo "No external downloads or dependencies required!"
+echo "Script contains NO wget, curl, or pip commands!"

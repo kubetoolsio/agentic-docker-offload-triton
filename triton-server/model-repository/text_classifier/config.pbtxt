@@ -2,17 +2,11 @@ name: "text_classifier"
 platform: "onnxruntime_onnx"
 max_batch_size: 8
 input [
-  {
-    name: "INPUT_TEXT"
-    data_type: TYPE_FP32
-    dims: [ 512 ]
-  }
+  { name: "input_ids"      data_type: TYPE_INT64 dims: [ -1 ] },
+  { name: "attention_mask" data_type: TYPE_INT64 dims: [ -1 ] }
 ]
 output [
-  {
-    name: "OUTPUT_SCORES"
-    data_type: TYPE_FP32
-    dims: [ 2 ]
-  }
+  { name: "logits" data_type: TYPE_FP32 dims: [ 2 ] }
 ]
 default_model_filename: "model.onnx"
+instance_group [{ kind: KIND_GPU }]

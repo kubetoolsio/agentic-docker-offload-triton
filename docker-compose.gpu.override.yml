@@ -1,0 +1,14 @@
+# GPU override (used for local-gpu OR remote-offload)
+services:
+  triton-server:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+  coordinator-agent:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
