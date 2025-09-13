@@ -6,20 +6,20 @@ TEXT="${1:-Hello from tiny model}"
 MODEL_NAME="text_classifier"
 READINESS_ENDPOINT="${TRITON_URL}/v2/models/${MODEL_NAME}/ready"
 
-echo "🔍 Checking Triton model readiness for '${MODEL_NAME}'..."
+echo "Checking Triton model readiness for '${MODEL_NAME}'..."
 for i in {1..30}; do
   if curl -fs "${READINESS_ENDPOINT}" >/dev/null 2>&1; then
-    echo "✅ Model is ready."
+    echo "Model is ready."
     break
   fi
   if [ "$i" -eq 30 ]; then
-    echo "❌ Model '${MODEL_NAME}' not ready after 30 attempts (60s)."
+    echo "Model '${MODEL_NAME}' not ready after 30 attempts (60s)."
     exit 1
   fi
   sleep 2
 done
 
-echo "🔍 Ensuring tokenizer/runtime dependencies (host side)..."
+echo "Ensuring tokenizer/runtime dependencies (host side)..."
 python3 - <<'PY'
 import sys, subprocess
 for p in ("transformers","torch","requests","numpy"):
@@ -29,7 +29,7 @@ for p in ("transformers","torch","requests","numpy"):
         subprocess.check_call([sys.executable,"-m","pip","install","--quiet",p])
 PY
 
-echo "🧪 Sending inference request to Triton (${TRITON_URL})..."
+echo "Sending inference request to Triton (${TRITON_URL})..."
 python3 - "$TEXT" "$TRITON_URL" "$MODEL_NAME" <<'PY'
 import sys, json, requests, numpy as np
 from transformers import AutoTokenizer
@@ -69,7 +69,7 @@ url = f"{triton_url}/v2/models/{model_name}/infer"
 resp = requests.post(url, json=payload, timeout=60)
 resp.raise_for_status()
 data = resp.json()
-print("✅ Inference response:")
+print("Inference response:")
 print(json.dumps(data, indent=2))
 
 # Extract logits and softmax
@@ -81,10 +81,10 @@ if outs:
     probs = ex / ex.sum(axis=1, keepdims=True)
     labels = ["NEGATIVE","POSITIVE"]
     labeled = [{ "label": labels[int(np.argmax(row))], "probs": {labels[0]: float(row[0]), labels[1]: float(row[1])} } for row in probs]
-    print("🔢 Probabilities:", probs.tolist())
-    print("🏷️  Labeled:", json.dumps(labeled, indent=2))
+    print("Probabilities:", probs.tolist())
+    print("Labeled:", json.dumps(labeled, indent=2))
 else:
-    print("⚠️  'logits' output not found.")
+    print("'logits' output not found.")
 PY
 
-echo "🎉 Real model inference complete."
+echo "Real model inference complete."

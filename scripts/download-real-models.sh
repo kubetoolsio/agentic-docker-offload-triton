@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "📥 Downloading SMALL real model (bert-tiny) for Triton..."
+echo "Downloading small real model (bert-tiny) for Triton..."
 
 MODEL_REPO="triton-server/model-repository"
 MODEL_DIR="${MODEL_REPO}/text_classifier"
@@ -10,7 +10,7 @@ VERSION_DIR="${MODEL_DIR}/1"
 rm -rf "${MODEL_DIR}"
 mkdir -p "${VERSION_DIR}"
 
-echo "🔧 Ensuring dependencies (transformers, torch, onnx)..."
+echo "Ensuring dependencies (transformers, torch, onnx)..."
 python3 - <<'EOF'
 import sys, subprocess
 pkgs = ["torch", "transformers", "onnx"]
@@ -21,7 +21,7 @@ for p in pkgs:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", p])
 EOF
 
-echo "🧬 Exporting tiny model to ONNX..."
+echo "Exporting tiny model to ONNX..."
 python3 - <<'EOF'
 import os, torch, json
 from transformers import AutoModel, AutoTokenizer
@@ -60,10 +60,10 @@ torch.onnx.export(
 )
 with open("triton-server/model-repository/text_classifier/tokenizer_info.json","w") as f:
     json.dump({"max_length":32,"model":model_name}, f)
-print("✅ Exported tiny ONNX model.")
+print("Exported tiny ONNX model.")
 EOF
 
-echo "⚙️ Writing Triton config..."
+echo "Writing Triton config..."
 cat > "${MODEL_DIR}/config.pbtxt" <<'EOF'
 name: "text_classifier"
 platform: "onnxruntime_onnx"
@@ -79,7 +79,7 @@ default_model_filename: "model.onnx"
 instance_group [{ kind: KIND_GPU }]
 EOF
 
-echo "📁 Model files:"
+echo "Model files:"
 find "${MODEL_DIR}" -maxdepth 2 -type f -print
 
-echo "✅ model ready."
+echo "Model ready."

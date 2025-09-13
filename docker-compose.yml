@@ -7,7 +7,7 @@ services:
     container_name: triton-server
     command: ["tritonserver", "--model-repository=/models", "--exit-on-error=false", "--log-verbose=0"]
     ports:
-      - "8000:8000"  # Force specific port mapping
+      - "8000:8000"
       - "8001:8001"  
       - "8002:8002"
     volumes:

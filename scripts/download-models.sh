@@ -61,7 +61,7 @@ with open(model_path, 'wb') as f:
     f.write(dummy_onnx)
 
 print(f'Created dummy ONNX model at {model_path}')
-" 2>/dev/null || echo "⚠️  Could not create ONNX model file"
+" 2>/dev/null || echo "Warning: Could not create ONNX model file"
 
 # Create text classifier model  
 mkdir -p ${MODEL_REPO}/text_classifier/1
@@ -95,7 +95,7 @@ dummy_onnx = b'ONNX_DUMMY_TEXT_CLASSIFIER_MODEL_FOR_TESTING'
 with open(model_path, 'wb') as f:
     f.write(dummy_onnx)
 print(f'Created text classifier model at {model_path}')
-" 2>/dev/null || echo "⚠️  Could not create text classifier model"
+" 2>/dev/null || echo "Warning: Could not create text classifier model"
 
 # Create image classifier model (ResNet-like)
 mkdir -p ${MODEL_REPO}/resnet50/1
@@ -129,7 +129,7 @@ dummy_onnx = b'ONNX_DUMMY_RESNET50_MODEL_FOR_TESTING'
 with open(model_path, 'wb') as f:
     f.write(dummy_onnx)
 print(f'Created ResNet50 model at {model_path}')
-" 2>/dev/null || echo "⚠️  Could not create ResNet50 model"
+" 2>/dev/null || echo "Warning: Could not create ResNet50 model"
 
 echo "Test model repository created successfully!"
 echo ""
@@ -154,4 +154,4 @@ echo "2. Test system: ./scripts/test-system.sh"
 echo "3. Monitor logs: docker-compose logs -f triton-server"
 echo ""
 echo "No external downloads or dependencies required!"
-echo "Script contains NO wget, curl, or pip commands!"
+echo "Script contains no wget, curl, or pip commands."

@@ -4,11 +4,11 @@ set -euo pipefail
 echo "Starting AI Offload system..."
 
 if ! command -v docker &>/dev/null; then
-  echo "❌ Docker is not installed. Please install Docker and try again."
+  echo "Docker is not installed. Please install Docker and try again."
   exit 1
 fi
 if ! docker compose version &>/dev/null; then
-  echo "❌ The 'docker compose' plugin is required."
+  echo "The 'docker compose' plugin is required."
   exit 1
 fi
 
@@ -56,7 +56,7 @@ fi
 case "$OFFLOAD_MODE" in
   local-gpu)
     if [ "$has_local_gpu" != "true" ]; then
-      echo "⚠️  OFFLOAD_MODE=local-gpu but no local GPU found; switching to cpu."
+      echo "OFFLOAD_MODE=local-gpu but no local GPU found; switching to cpu."
       OFFLOAD_MODE="cpu"
       OFFLOAD_ENABLED=false
     else
@@ -67,7 +67,7 @@ case "$OFFLOAD_MODE" in
     # Force has_local_gpu false (clarity) even if remote context lets GPU containers run
     has_local_gpu="false"
     if ! docker offload status >/dev/null 2>&1 || ! docker offload status | grep -q "Started"; then
-      echo "🌩️  Starting Docker Offload GPU session..."
+      echo "Starting Docker Offload GPU session..."
       docker offload start --gpu
     fi
     OFFLOAD_ENABLED=true
@@ -76,36 +76,36 @@ case "$OFFLOAD_MODE" in
     OFFLOAD_ENABLED=false
     ;;
   *)
-    echo "❌ Unknown OFFLOAD_MODE='$OFFLOAD_MODE' (auto|local-gpu|remote-offload|cpu)."
+    echo "Unknown OFFLOAD_MODE='$OFFLOAD_MODE' (auto|local-gpu|remote-offload|cpu)."
     exit 1
     ;;
 esac
 
-echo "✅ Final OFFLOAD_MODE: $OFFLOAD_MODE"
+echo "Final OFFLOAD_MODE: $OFFLOAD_MODE"
 echo "   OFFLOAD_ENABLED: $OFFLOAD_ENABLED"
 
 export OFFLOAD_MODE OFFLOAD_ENABLED REMOTE_DOCKER_MODEL_RUNNER_URL
 
-echo "🛑 Stopping any existing stack to ensure a clean start..."
+echo "Stopping any existing stack to ensure a clean start..."
 docker compose down -v --remove-orphans >/dev/null 2>&1 || true
 
 compose_files="-f docker-compose.yml"
 if [ "$OFFLOAD_MODE" = "local-gpu" ] || [ "$OFFLOAD_MODE" = "remote-offload" ]; then
-  echo "🚀 Applying GPU configuration override..."
+  echo "Applying GPU configuration override..."
   compose_files="$compose_files -f docker-compose.gpu.override.yml"
 fi
 
-echo "🚀 Bringing stack up in '$OFFLOAD_MODE' mode..."
+echo "Bringing stack up in '$OFFLOAD_MODE' mode..."
 docker compose $compose_files up -d
 
-echo "⏳ Waiting for coordinator (port 8090) to become healthy..."
+echo "Waiting for coordinator (port 8090) to become healthy..."
 for i in {1..40}; do
   if curl -sf http://localhost:8090/health >/dev/null 2>&1; then
-    echo "✅ Coordinator is ready!"
+    echo "Coordinator is ready!"
     break
   fi
   if [ "$i" -eq 40 ]; then
-    echo "❌ Coordinator failed to become ready after 80 seconds."
+    echo "Coordinator failed to become ready after 80 seconds."
     docker compose logs --tail=120 coordinator-agent || true
     exit 1
   fi
@@ -113,7 +113,7 @@ for i in {1..40}; do
 done
 
 echo ""
-echo "🎉 System is up and running!"
+echo "System is up and running!"
 echo ""
 echo "   Mode Summary:"
 echo "     OFFLOAD_MODE: $OFFLOAD_MODE"

@@ -10,7 +10,7 @@ fi
 TYPE=$1
 INPUT=$2
 
-echo "🔍 Testing $TYPE inference with input: $INPUT"
+echo "Testing $TYPE inference with input: $INPUT"
 
 case $TYPE in
     "text")
@@ -27,12 +27,12 @@ case $TYPE in
              }"
         ;;
     "image")
-        echo "📸 Image inference test (placeholder)"
+        echo "Image inference test (placeholder)"
         echo "Input file: $INPUT"
         # In production, this would process the actual image file
         ;;
     "audio")
-        echo "🎵 Audio inference test (placeholder)"
+        echo "Audio inference test (placeholder)"
         echo "Input file: $INPUT"
         # In production, this would process the actual audio file
         ;;
@@ -51,7 +51,7 @@ PREPROCESSOR_URL="http://localhost:8081"
 # Function to test text inference
 test_text() {
     local text="$1"
-    echo "🔤 Testing text inference: '$text'"
+    echo "Testing text inference: '$text'"
     
     local payload=$(cat << EOF
 {
@@ -68,7 +68,7 @@ EOF
         -d "$payload" \
         "$PREPROCESSOR_URL/preprocess"); then
         
-        echo "✅ Text preprocessing successful"
+        echo "Text preprocessing successful"
         echo "   Response: $(echo "$preprocess_response" | jq -c '.metadata // {}' 2>/dev/null)"
         
         # Extract preprocessed data for inference
@@ -83,13 +83,13 @@ EOF
             -d "$inference_payload" \
             "$COORDINATOR_URL/infer"); then
             
-            echo "✅ Text inference successful"
+            echo "Text inference successful"
             echo "   Result: $(echo "$inference_response" | jq -c '.metadata // {}' 2>/dev/null)"
         else
-            echo "❌ Text inference failed"
+            echo "Text inference failed"
         fi
     else
-        echo "❌ Text preprocessing failed"
+        echo "Text preprocessing failed"
     fi
 }
 
@@ -102,7 +102,7 @@ test_image() {
         return 1
     fi
     
-    echo "🖼️  Testing image inference: $image_path"
+    echo "Testing image inference: $image_path"
     
     # Encode image to base64
     local image_b64=$(base64 -w 0 "$image_path")
@@ -122,7 +122,7 @@ EOF
         -d "$payload" \
         "$PREPROCESSOR_URL/preprocess"); then
         
-        echo "✅ Image preprocessing successful"
+        echo "Image preprocessing successful"
         echo "   Response: $(echo "$preprocess_response" | jq -c '.metadata // {}' 2>/dev/null)"
         
         # Extract preprocessed data for inference
@@ -137,13 +137,13 @@ EOF
             -d "$inference_payload" \
             "$COORDINATOR_URL/infer"); then
             
-            echo "✅ Image inference successful"
+            echo "Image inference successful"
             echo "   Result: $(echo "$inference_response" | jq -c '.metadata // {}' 2>/dev/null)"
         else
-            echo "❌ Image inference failed"
+            echo "Image inference failed"
         fi
     else
-        echo "❌ Image preprocessing failed"
+        echo "Image preprocessing failed"
     fi
 }
 
@@ -157,23 +157,23 @@ test_file_upload() {
         return 1
     fi
     
-    echo "📎 Testing file upload: $file_path"
+    echo "Testing file upload: $file_path"
     
     if response=$(curl -s -f -X POST \
         -F "file=@$file_path" \
         -F "target_model=$model" \
         "$PREPROCESSOR_URL/preprocess/file"); then
         
-        echo "✅ File upload and preprocessing successful"
+        echo "File upload and preprocessing successful"
         echo "   Response: $(echo "$response" | jq -c '.metadata // {}' 2>/dev/null)"
     else
-        echo "❌ File upload failed"
+        echo "File upload failed"
     fi
 }
 
 # Function to test aggregation
 test_aggregation() {
-    echo "🔄 Testing result aggregation..."
+    echo "Testing result aggregation..."
     
     # Create mock inference results
     local mock_results='[
@@ -202,20 +202,20 @@ EOF
         -d "$payload" \
         "http://localhost:8082/aggregate"); then
         
-        echo "✅ Result aggregation successful"
+        echo "Result aggregation successful"
         echo "   Result: $(echo "$aggregation_response" | jq -c '.metadata // {}' 2>/dev/null)"
     else
-        echo "❌ Result aggregation failed"
+        echo "Result aggregation failed"
     fi
 }
 
 # Main execution
-echo "🧪 AI Inference Testing Suite"
+echo "AI Inference Testing Suite"
 echo "=============================="
 
 # Check if services are running
 if ! curl -s -f "$COORDINATOR_URL/health" > /dev/null; then
-    echo "❌ Coordinator service not available at $COORDINATOR_URL"
+    echo "Coordinator service not available at $COORDINATOR_URL"
     echo "   Please ensure services are running: docker-compose up -d"
     exit 1
 fi
@@ -254,7 +254,7 @@ case "${1:-all}" in
         if [ -f "./test-data/sample.jpg" ]; then
             test_image "./test-data/sample.jpg"
         else
-            echo "⚠️  No sample image found, skipping image test"
+            echo "No sample image found, skipping image test"
         fi
         echo ""
         
@@ -262,15 +262,15 @@ case "${1:-all}" in
         if [ -f "./test-data/sample.txt" ]; then
             test_file_upload "./test-data/sample.txt" "text_classifier"
         else
-            echo "⚠️  No sample text file found, skipping file upload test"
+            echo "No sample text file found, skipping file upload test"
         fi
         ;;
 esac
 
 echo ""
-echo "🎉 Testing complete!"
+echo "Testing complete!"
 echo ""
-echo "💡 Usage examples:"
+echo "Usage examples:"
 echo "   ./scripts/test-inference.sh text 'Your custom text here'"
 echo "   ./scripts/test-inference.sh image /path/to/image.jpg"
 echo "   ./scripts/test-inference.sh file /path/to/file.txt text_classifier"
